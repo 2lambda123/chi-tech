@@ -4,6 +4,7 @@
 #include "../chi_mesh.h"
 #include "chi_meshcontinuum_localcellhandler.h"
 #include "chi_meshcontinuum_globalcellhandler.h"
+#include "chi_meshcontinuum_vertexhandler.h"
 
 #include "chi_mpi.h"
 
@@ -19,15 +20,15 @@ private:
   std::map<uint64_t,uint64_t> global_cell_id_to_native_id_map;
   std::map<uint64_t,uint64_t> global_cell_id_to_foreign_id_map;
 
+  uint64_t global_vertex_count=0;
 
 public:
-  std::vector<chi_mesh::Node>    vertices;
+  VertexHandler                  vertices;
   LocalCellHandler               local_cells;
   GlobalCellHandler              cells;
   chi_mesh::SurfaceMesh*         surface_mesh;
   chi_mesh::LineMesh*            line_mesh;
   std::vector<uint64_t>          local_cell_glob_indices;
-  std::vector<int>               boundary_cell_indices;
 
 private:
   bool                           face_histogram_available = false;
@@ -52,6 +53,9 @@ public:
     line_mesh    = nullptr;
   }
 
+  void SetGlobalVertexCount(const uint64_t count) {global_vertex_count = count;}
+  uint64_t GetGlobalVertexCount() const {return global_vertex_count;}
+
   static
   std::shared_ptr<MeshContinuum> New()
   { return std::shared_ptr<MeshContinuum>(new MeshContinuum());}
@@ -70,35 +74,35 @@ public:
   void ExportCellsToPython(const char* fileName,
                            bool surface_only=true,
                            std::vector<int>* cell_flags = nullptr,
-                           int options = 0);
+                           int options = 0) const;
   void ExportCellsToObj(const char* fileName,
                            bool per_material=false,
-                           int options = 0);
-  void ExportCellsToVTK(const char* baseName);
+                           int options = 0) const;
+  void ExportCellsToVTK(const char* baseName) const;
 
   //02
   void BuildFaceHistogramInfo(double master_tolerance=100.0, double slave_tolerance=1.1);
   size_t NumberOfFaceHistogramBins();
   size_t MapFaceHistogramBins(size_t num_face_dofs);
   size_t GetFaceHistogramBinDOFSize(size_t category);
-  bool IsCellLocal(uint64_t cell_global_index);
-  bool IsCellBndry(uint64_t cell_global_index);
+  bool IsCellLocal(uint64_t cell_global_index) const;
+  bool IsCellBndry(uint64_t cell_global_index) const;
 
   void FindAssociatedVertices(chi_mesh::CellFace& cur_face,
-                              std::vector<short>& dof_mapping);
+                              std::vector<short>& dof_mapping) const;
 
-  chi_mesh::Vector3 ComputeCentroidFromListOfNodes(const std::vector<uint64_t>& list);
+  chi_mesh::Vector3
+  ComputeCentroidFromListOfNodes(const std::vector<uint64_t>& list) const;
 
-  void CommunicatePartitionNeighborCells(
-    std::map<uint64_t, chi_mesh::Cell*>& neighbor_cells);
+  std::vector<std::unique_ptr<chi_mesh::Cell>> GetGhostCells();
 
   ChiMPICommunicatorSet& GetCommunicator();
 
-  size_t GetGlobalNumberOfCells();
+  size_t GetGlobalNumberOfCells() const;
 
-  std::vector<uint64_t> GetDomainUniqueBoundaryIDs();
+  std::vector<uint64_t> GetDomainUniqueBoundaryIDs() const;
 
-  size_t CountCellsInLogicalVolume(chi_mesh::LogicalVolume& log_vol);
+  size_t CountCellsInLogicalVolume(chi_mesh::LogicalVolume& log_vol) const;
 };
 
 #endif //CHI_MESHCONTINUUM_H_

@@ -17,23 +17,33 @@ public:
     std::vector<uint64_t> vertex_ids;
     bool has_neighbor = false;
     uint64_t neighbor=0;
+
+    LightWeightFace() = default;
+    explicit
+    LightWeightFace(std::vector<uint64_t> in_vertex_ids) :
+      vertex_ids(std::move(in_vertex_ids)) {}
   };
   struct LightWeightCell
   {
     const chi_mesh::CellType type;
+    const chi_mesh::CellType sub_type;
     chi_mesh::Vertex centroid;
     int material_id=-1;
     std::vector<uint64_t> vertex_ids;
     std::vector<LightWeightFace> faces;
 
     explicit
-    LightWeightCell(chi_mesh::CellType in_type) : type(in_type) {}
+    LightWeightCell(chi_mesh::CellType in_type,
+                    chi_mesh::CellType in_sub_type) :
+                    type(in_type),
+                    sub_type(in_sub_type) {}
   };
 
 public:
   std::vector<chi_mesh::Vertex>    vertices;
   std::vector<LightWeightCell*>    raw_cells;
   std::vector<LightWeightCell*>    raw_boundary_cells;
+  std::vector<std::set<uint64_t>>  vertex_cell_subscriptions;
 
 public:
   enum class ParallelMethod
@@ -77,6 +87,18 @@ public:
   void ReadFromWavefrontOBJ(const Options& options);
 
   void ReadFromMsh(const Options& options);
+
+  void PushProxyCell(const std::string& type_str,
+                     const std::string& sub_type_str,
+                     int cell_num_faces,
+                     int cell_material_id,
+                     const std::vector<std::vector<uint64_t>>& proxy_faces);
+
+  ~UnpartitionedMesh()
+  {
+    for (auto& cell : raw_cells)          delete cell;
+    for (auto& cell : raw_boundary_cells) delete cell;
+  }
 };
 
 

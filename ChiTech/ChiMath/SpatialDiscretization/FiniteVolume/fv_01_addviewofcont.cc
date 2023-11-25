@@ -1,9 +1,6 @@
 #include "fv.h"
 
 #include <ChiMesh/MeshContinuum/chi_meshcontinuum.h>
-#include <ChiMesh/Cell/cell_slab.h>
-#include <ChiMesh/Cell/cell_polygon.h>
-#include <ChiMesh/Cell/cell_polyhedron.h>
 
 #include "CellViews/fv_slab.h"
 #include "CellViews/fv_polygon.h"
@@ -40,8 +37,7 @@ void SpatialDiscretization_FV::PreComputeCellSDValues()
       //######################################### SLAB
       if (cell.Type() == chi_mesh::CellType::SLAB)
       {
-        auto view =
-          new SlabFVValues((chi_mesh::CellSlab*)(&cell), ref_grid);
+        auto view = new SlabFVValues(cell, *ref_grid);
 
         cell_fv_views.push_back(view);
         cell_view_added_flags[cell.local_id] = true;
@@ -50,8 +46,7 @@ void SpatialDiscretization_FV::PreComputeCellSDValues()
       //######################################### POLYGON
       if (cell.Type() == chi_mesh::CellType::POLYGON)
       {
-        auto view =
-          new PolygonFVValues((chi_mesh::CellPolygon*)(&cell), ref_grid);
+        auto view = new PolygonFVValues(cell, *ref_grid);
 
         cell_fv_views.push_back(view);
         cell_view_added_flags[cell.local_id] = true;
@@ -60,10 +55,7 @@ void SpatialDiscretization_FV::PreComputeCellSDValues()
       //######################################### POLYHEDRON
       if (cell.Type() == chi_mesh::CellType::POLYHEDRON)
       {
-        auto view =
-          new PolyhedronFVValues(
-            (chi_mesh::CellPolyhedron*)(&cell),
-            ref_grid);
+        auto view = new PolyhedronFVValues(cell, *ref_grid);
 
         cell_fv_views.push_back(view);
         cell_view_added_flags[cell.local_id] = true;
@@ -80,69 +72,47 @@ void SpatialDiscretization_FV::
   chi_log.Log(LOG_0VERBOSE_1)
     << "SpatialDiscretization_FV - Adding view of neighbor continuums.";
 
-  ref_grid->CommunicatePartitionNeighborCells(neighbor_cells);
+  auto ghost_cells = ref_grid->GetGhostCells();
+
+  neighbor_cells.clear();
+  for (auto& cell_ptr : ghost_cells)
+    neighbor_cells.insert(
+      std::make_pair(cell_ptr->global_id,std::move(cell_ptr)));
 
   chi_log.Log(LOG_0VERBOSE_1)
     << "Number neighbor cells: " << neighbor_cells.size();
-
-  //================================================== Reorder according to
-  //                                                   ghost indices
-  std::vector<chi_mesh::Cell*> temp(ref_grid->cells.GetNumGhosts(), nullptr);
-
-  auto ghost_ids = ref_grid->cells.GetGhostGlobalIDs();
-  chi_log.Log(LOG_0VERBOSE_1)
-    << "Number of ghost ids: " << ghost_ids.size();
-  for (int ghost_id : ghost_ids)
-  {
-    int ghost_local_index = ref_grid->cells.GetGhostLocalID(ghost_id);
-
-    for (auto& cell_pair : neighbor_cells)
-      if (cell_pair.first == ghost_id)
-        temp[ghost_local_index] = cell_pair.second;
-  }
-  neighbor_cells.clear();
-  for (auto tcell : temp)
-    if (tcell != nullptr)
-      neighbor_cells.insert(std::pair<uint64_t, chi_mesh::Cell*>(
-        tcell->global_id, tcell));
-
 
   chi_log.Log(LOG_0VERBOSE_1)
     << "Adding neighbor views";
   //================================================== Populate cell fe views
   for (auto& cell_pair : neighbor_cells)
   {
-    auto& cell = cell_pair.second;
+    const auto& cell = *cell_pair.second;
     //######################################### SLAB
-    if (cell->Type() == chi_mesh::CellType::SLAB)
+    if (cell.Type() == chi_mesh::CellType::SLAB)
     {
-      auto view =
-        new SlabFVValues((chi_mesh::CellSlab*)cell, ref_grid);
+      auto view = new SlabFVValues(cell, *ref_grid);
 
       neighbor_cell_fv_views.insert(std::pair<uint64_t, CellFVValues*>(
-        cell->global_id,view));
+        cell.global_id,view));
     }
 
     //######################################### POLYGON
-    if (cell->Type() == chi_mesh::CellType::POLYGON)
+    if (cell.Type() == chi_mesh::CellType::POLYGON)
     {
-      auto view =
-        new PolygonFVValues((chi_mesh::CellPolygon*)cell, ref_grid);
+      auto view = new PolygonFVValues(cell, *ref_grid);
 
       neighbor_cell_fv_views.insert(std::pair<uint64_t, CellFVValues*>(
-        cell->global_id,view));
+        cell.global_id,view));
     }
 
     //######################################### POLYHEDRON
-    if (cell->Type() == chi_mesh::CellType::POLYHEDRON)
+    if (cell.Type() == chi_mesh::CellType::POLYHEDRON)
     {
-      auto view =
-        new PolyhedronFVValues(
-          (chi_mesh::CellPolyhedron*)cell,
-          ref_grid);
+      auto view = new PolyhedronFVValues(cell, *ref_grid);
 
       neighbor_cell_fv_views.insert(std::pair<uint64_t, CellFVValues*>(
-        cell->global_id,view));
+        cell.global_id,view));
     }
   }//for num cells
 
